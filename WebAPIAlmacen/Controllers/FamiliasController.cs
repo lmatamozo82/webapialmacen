@@ -5,7 +5,7 @@ using WebAPIAlmacen.Entidades;
 namespace WebAPIAlmacen.Controllers
 {
     [ApiController]
-    [Route("api/familas")]
+    [Route("api/familias")]
     public class FamiliasController :ControllerBase
     {
         private readonly ApplicationDBContext context;
