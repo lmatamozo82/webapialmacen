@@ -13,9 +13,11 @@ builder.Services.AddSwaggerGen();
 
 //Agregamos DBContext como servicio para poder usarlo como inyección de depenecias.
 var connectionstring = builder.Configuration.GetConnectionString("defaultConnection");
-builder.Services.AddDbContext<ApplicationDBContext>(opciones => opciones.UseSqlServer(connectionstring)); //Agregamos el servicio DBContext a la aplciacion.
-
-
+builder.Services.AddDbContext<ApplicationDBContext>(opciones =>
+{
+    opciones.UseSqlServer(connectionstring); //Agregamos el servicio DBContext a la aplciacion.
+    opciones.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);    //Puesto para desactivar el tracking de forma general para este DBContext. Asi no tenemos que hacerlo en cada metodo.
+});
 
 var app = builder.Build();
 
