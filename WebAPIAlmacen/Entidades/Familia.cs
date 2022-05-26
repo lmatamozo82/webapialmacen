@@ -9,5 +9,7 @@ namespace WebAPIAlmacen.Entidades
        // [StringLength(50)] Ya especificado en la creacion de DbContext
         public string Nombre { get; set; }
         public ICollection<Producto> Productos { get; set; }
+
+        public bool Eliminado { get; set; }
     }
 }

@@ -31,6 +31,10 @@ namespace WebAPIAlmacen
 
             //Opción 2. Clase que escanea todas las configuraciones que hereden de la clase de configuracion (implementa el interfaz) y las añade.
             modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
+
+            modelBuilder.Entity<ProductoKeyLess>().HasNoKey().ToSqlQuery("SELECT Id, Nombre, Precio from Productos").ToView(null);
+
+
             SeedData.Seed(modelBuilder);
         }
 
@@ -40,5 +44,7 @@ namespace WebAPIAlmacen
         public DbSet<UbicacionProducto> UbicacionesProductos { get; set; }
         public DbSet<Distribuidor> Distribuidores { get; set; }
         public DbSet<DistribuidorProducto> DistribuidoresProductos { get; set; }
+        public DbSet<ProductoKeyLess> ProductoKeyLess { get; set; } 
+
     }
 }
