@@ -9,6 +9,10 @@ namespace WebAPIAlmacen.Entidades.Configuraciones
         {
             
             builder.Property(x => x.Nombre).HasMaxLength(50).IsRequired();
+
+
+            //builder.HasMany(x=>x.Productos).WithOne(x => x.Familia).HasForeignKey(x=> x.FamiliaId).OnDelete(DeleteBehavior.Restrict);
+            builder.HasQueryFilter(x => !x.Eliminado);   //Filtro puesto para que directamente no saque los eliminados.
         }
     }
 }
