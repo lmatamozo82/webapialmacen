@@ -1,31 +1,57 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using WebAPIAlmacen.DTOs;
 using WebAPIAlmacen.Entidades;
+using WebAPIAlmacen.Servicios;
 
 namespace WebAPIAlmacen.Controllers
 {
     [ApiController]
     [Route("api/familias")]
-    public class FamiliasController :ControllerBase
+    public class FamiliasController : ControllerBase
     {
         private readonly ApplicationDBContext context;
+        private readonly ServicioSingleton servicioSingleton;
+        private readonly ILogger<FamiliasController> logger;
+        private readonly IConfiguration configuration;
+        private readonly ServicioTransient servicioTransient;
+        private readonly ServicioScoped servicioScoped;
 
-        public FamiliasController(ApplicationDBContext context)
+        public FamiliasController(ApplicationDBContext context,ServicioTransient servicioTransient,ServicioScoped servicioScoped, ServicioSingleton servicioSingleton,ILogger<FamiliasController> logger, IConfiguration configuration)
         {
             this.context = context;
+            this.servicioSingleton = servicioSingleton;
+            this.logger = logger;
+            this.configuration = configuration;
+            this.servicioTransient = servicioTransient;
+            this.servicioScoped = servicioScoped;
         }
+
+        [HttpGet("GUID")]
+        public ActionResult GetGUIDS()
+        {
+            var guid1 = servicioTransient.Guid;
+            var guid2 = servicioScoped.Guid;
+            var guid3 = servicioSingleton.Guid;
+
+            return Ok(new { Transient = guid1, Scoped = guid2, Singleton = guid3 });
+        }
+
+
 
         //[HttpGet("listadofamilias")]
         //[HttpGet("/listadofamilias")]
         [HttpGet]
         public async Task<IEnumerable<Familia>> Get()
         {
+            var autor = configuration["Autor"]; //Lecura de un setting del appsettings.json
+            logger.LogInformation("Obteniendo familias");
             return await context.Familias.ToListAsync();
         }
 
         [HttpGet("sync")]   //Este tipo de petición sincrona, no libera el hilo de ejecución y no puede atender otras peticiones en el mismo hilo. NO USAR
-        public  IEnumerable<Familia> GetSync()
+        public IEnumerable<Familia> GetSync()
         {
             return context.Familias.ToList();
         }
@@ -43,7 +69,7 @@ namespace WebAPIAlmacen.Controllers
             //Ejemplo de uso de SQLs a modo tradicional.   
             //var familia = await context.Familias.FromSqlInterpolated($"SELECT * FROM Familias WHERE Id={id}").FirstOrDefaultAsync();
 
-            var familia = await context.Familias.FromSqlRaw("SELECT * FROM Familias WHERE Id={0}",id).FirstOrDefaultAsync();
+            var familia = await context.Familias.FromSqlRaw("SELECT * FROM Familias WHERE Id={0}", id).FirstOrDefaultAsync();
 
 
             return Ok(familia);
@@ -65,7 +91,7 @@ namespace WebAPIAlmacen.Controllers
         [HttpGet("{contiene}")]
         public async Task<ActionResult<Familia>> GetFamiliaContiene(string contiene)
         {
-            var familia = await context.Familias.FirstOrDefaultAsync(x=>x.Nombre.Contains(contiene));
+            var familia = await context.Familias.FirstOrDefaultAsync(x => x.Nombre.Contains(contiene));
 
             //var familia = await context.Familias.Where(x => x.Nombre.Contains(contiene)).FirstOrDefaultAsync()); esto tb vale
 
@@ -84,7 +110,7 @@ namespace WebAPIAlmacen.Controllers
 
 
         [HttpGet("contieneparamquerystring")]
-        public async Task<ActionResult<Familia>> GetFamiliaContieneQueryString([FromQuery]string contiene)
+        public async Task<ActionResult<Familia>> GetFamiliaContieneQueryString([FromQuery] string contiene)
         {
             var familia = await context.Familias.FirstOrDefaultAsync(x => x.Nombre.Contains(contiene));
 
@@ -98,10 +124,10 @@ namespace WebAPIAlmacen.Controllers
         {
             var familia = await context.Familias.FirstOrDefaultAsync(x => x.Nombre.Contains(contiene));
 
-            if (familia==null)
-             {
+            if (familia == null)
+            {
                 return NotFound();
-             }
+            }
 
             //var familia = await context.Familias.Where(x => x.Nombre.Contains(contiene)).FirstOrDefaultAsync()); esto tb vale
 
@@ -109,113 +135,120 @@ namespace WebAPIAlmacen.Controllers
         }
 
 
-        [HttpGet("paginacion")]
-        public async Task<ActionResult<IEnumerable<Familia>>> GetFamiliasPaginacion()
-        {
-            //var familias = await context.Familias.Take(2).ToListAsync();
-            var familias = await context.Familias.Skip(1).Take(2).ToListAsync();
-
-            return Ok(familias);
-        }
-
-        [HttpGet("paginacion2")]
-        public async Task<ActionResult<IEnumerable<Familia>>> GetFamiliasPaginacion2(int pagina=1)
-        {
-            //var familias = await context.Familias.Take(2).ToListAsync();
-            int registrosporpagina = 2;
-            var familias = await context.Familias.Skip((pagina-1) * registrosporpagina)
-                .Take(registrosporpagina).ToListAsync();
-
-            return Ok(familias);
-        }
-
-        [HttpGet("select")]
-        public async Task<ActionResult<IEnumerable<Familia>>> GetFamiliasSelect()
-        {
-            
-            var familias = await context.Familias.Select(x=> new {Id=x.Id,Nombre=x.Nombre }).ToListAsync();
-
-            //Tb puedo hacer esto.
-            //var familia2 = await (from x in context.Familias
-            //                      select new
-            //                      {
-            //                          Id = x.Id,
-            //                          Nombre = x.Nombre
-            //                      }).ToListAsync();
-            
-
-            return Ok(familias);
-        }
-
-        [HttpGet("FamiliasProductos/{id:int}")]
-        public async Task<ActionResult<Familia>> GetFamiliaProductos(int id)
-        {
-
-            var familias = await context.Familias.Include(x=>x.Productos).FirstOrDefaultAsync(x=>x.Id==id);
-
-            return Ok(familias);
-        }
-
-        [HttpGet("FamiliasProductosThenInclude/{id:int}")]
-        public async Task<ActionResult<Familia>> GetFamiliaProductosThenInclude(int id)
-        {
-
-            var familias = await context.Familias
-                .Include(x => x.Productos.OrderBy(x=>x.Nombre))
-                .ThenInclude(x=>x.DistribuidorProductos)
-                .ThenInclude(x=>x.Distribuidor)
-                .FirstOrDefaultAsync(x => x.Id == id);
-
-            return Ok(familias);
-        }
-
-        [HttpGet("FamiliasProductosSelect/{id:int}")]
-        public async Task<ActionResult<Familia>> GetFamiliaProductosSelect(int id)
-        {
-
-            var familias = await (from x in context.Familias
-                                  where x.Id==id
-                                  select new DTOFamiliaProductos
-                                  {
-                                      Id = x.Id,
-                                      Nombre = x.Nombre,
-                                      TotalProductos = x.Productos.Count,
-                                      Productos = x.Productos.Select(y => new DTOProductoItem
-                                      {
-                                          IdProducto = y.Id,
-                                          Nombre = y.Nombre
-                                      }).ToList()
-                                  }).FirstOrDefaultAsync();
 
 
-            return Ok(familias);
-        }
+        //Desde aqui
 
 
 
-        [HttpPost]
-        public async Task<ActionResult<Familia>> Post(Familia familia)
-        {
 
-            var estatus = context.Entry(familia).State; //Detached. Sin seguimiento (viene de fuera y no se conoce).
+        //[HttpGet("paginacion")]
+        //public async Task<ActionResult<IEnumerable<Familia>>> GetFamiliasPaginacion()
+        //{
+        //    //var familias = await context.Familias.Take(2).ToListAsync();
+        //    var familias = await context.Familias.Skip(1).Take(2).ToListAsync();
 
-            await context.AddAsync(familia);
-            var estatus2 = context.Entry(familia).State;  //Added. Agregado y conocido.
+        //    return Ok(familias);
+        //}
 
-            await context.SaveChangesAsync();
-            var estatus3 = context.Entry(familia).State; //Unchanged. Cambiado y sin modificar.
+        //[HttpGet("paginacion2")]
+        //public async Task<ActionResult<IEnumerable<Familia>>> GetFamiliasPaginacion2(int pagina = 1)
+        //{
+        //    //var familias = await context.Familias.Take(2).ToListAsync();
+        //    int registrosporpagina = 2;
+        //    var familias = await context.Familias.Skip((pagina - 1) * registrosporpagina)
+        //        .Take(registrosporpagina).ToListAsync();
 
-            return Ok();
+        //    return Ok(familias);
+        //}
+
+        //[HttpGet("select")]
+        //public async Task<ActionResult<IEnumerable<Familia>>> GetFamiliasSelect()
+        //{
+
+        //    var familias = await context.Familias.Select(x => new { Id = x.Id, Nombre = x.Nombre }).ToListAsync();
+
+        //    //Tb puedo hacer esto.
+        //    //var familia2 = await (from x in context.Familias
+        //    //                      select new
+        //    //                      {
+        //    //                          Id = x.Id,
+        //    //                          Nombre = x.Nombre
+        //    //                      }).ToListAsync();
 
 
-        }
+        //    return Ok(familias);
+        //}
+
+        //[HttpGet("FamiliasProductos/{id:int}")]
+        //public async Task<ActionResult<Familia>> GetFamiliaProductos(int id)
+        //{
+
+        //    var familias = await context.Familias.Include(x => x.Productos).FirstOrDefaultAsync(x => x.Id == id);
+
+        //    return Ok(familias);
+        //}
+
+        //[HttpGet("FamiliasProductosThenInclude/{id:int}")]
+        //public async Task<ActionResult<Familia>> GetFamiliaProductosThenInclude(int id)
+        //{
+
+        //    var familias = await context.Familias
+        //        .Include(x => x.Productos.OrderBy(x => x.Nombre))
+        //        .ThenInclude(x => x.DistribuidorProductos)
+        //        .ThenInclude(x => x.Distribuidor)
+        //        .FirstOrDefaultAsync(x => x.Id == id);
+
+        //    return Ok(familias);
+        //}
+
+        //[HttpGet("FamiliasProductosSelect/{id:int}")]
+        //public async Task<ActionResult<Familia>> GetFamiliaProductosSelect(int id)
+        //{
+
+        //    var familias = await (from x in context.Familias
+        //                          where x.Id == id
+        //                          select new DTOFamiliaProductos
+        //                          {
+        //                              Id = x.Id,
+        //                              Nombre = x.Nombre,
+        //                              TotalProductos = x.Productos.Count,
+        //                              Productos = x.Productos.Select(y => new DTOProductoItem
+        //                              {
+        //                                  IdProducto = y.Id,
+        //                                  Nombre = y.Nombre
+        //                              }).ToList()
+        //                          }).FirstOrDefaultAsync();
+
+
+        //    return Ok(familias);
+        //}
+
+
+
+        //[HttpPost]
+        //public async Task<ActionResult<Familia>> Post(Familia familia)
+        //{
+
+        //    var estatus = context.Entry(familia).State; //Detached. Sin seguimiento (viene de fuera y no se conoce).
+
+        //    await context.AddAsync(familia);
+        //    var estatus2 = context.Entry(familia).State;  //Added. Agregado y conocido.
+
+        //    await context.SaveChangesAsync();
+        //    var estatus3 = context.Entry(familia).State; //Unchanged. Cambiado y sin modificar.
+
+        //    return Ok();
+
+
+        //}
 
         [HttpPost]
         public async Task<ActionResult<Familia>> PostVarios(Familia[] familias)
         {
             await context.AddRangeAsync(familias);
             await context.SaveChangesAsync();
-            
+
             return Ok();
         }
 
@@ -224,8 +257,8 @@ namespace WebAPIAlmacen.Controllers
         {
             await context.AddAsync(familia);
             await context.SaveChangesAsync();
-            return Created("Familia", new {Familia = familia});
-                        
+            return Created("Familia", new { Familia = familia });
+
         }
 
         [HttpPost("familiaproductosdto")]
@@ -260,12 +293,19 @@ namespace WebAPIAlmacen.Controllers
 
                 return Created("Familia", new { Familia = newFamilia });
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 await transaction.RollbackAsync();
                 return BadRequest("De ha producido un error.");
             }
         }
+
+
+
+
+        //Hasta aqui
+
+
 
         [HttpPut("{id:int}")]
         public async Task<ActionResult> PutFamilias(int id, [FromBody] Familia familia)
@@ -294,7 +334,7 @@ namespace WebAPIAlmacen.Controllers
             {
                 return BadRequest("Los ids no coinciden");
             }
-            
+
             //Tracking activado en la consulta pq queremos hacer un seguimiento pq lo modificamos.
             var familiaUpdate = await context.Familias.AsTracking().FirstOrDefaultAsync(x => x.Id == id);
             if (familiaUpdate == null)
@@ -313,7 +353,7 @@ namespace WebAPIAlmacen.Controllers
         public async Task<ActionResult> DeleteFamilias(int id)
         {
 
-            var familia = await context.Familias.Include(x=>x.Productos).FirstOrDefaultAsync(x=>x.Id==id);
+            var familia = await context.Familias.Include(x => x.Productos).FirstOrDefaultAsync(x => x.Id == id);
             if (familia == null)
             {
                 return NotFound();
@@ -357,6 +397,41 @@ namespace WebAPIAlmacen.Controllers
 
             return NoContent();
         }
+
+        [HttpGet("procedimiento_almacenado/{id:int}")]
+        public async Task<ActionResult<Familia>> GetSP(int id)
+        {
+            var familias = context.Familias
+                        .FromSqlInterpolated($"EXEC Familias_ObtenerPorId {id}")
+                        .IgnoreQueryFilters()  //Esto es pq en familia config tenemos un filtro para no mostrar los eliminados
+                        .AsAsyncEnumerable(); // No podemos volcar los resultados de un procedimiento en un List o First porque el procedimiento almacenado no es una consulta que EF pueda manejar 
+
+            // Solo obtenemos uno
+            await foreach (var familia in familias)
+            {
+                return familia;
+            }
+
+            return NotFound();
+        }
+
+
+        [HttpPost("Procedimiento_almacenado")]
+        public async Task<ActionResult> PostSP(Familia genero)
+        {
+            var outputId = new SqlParameter();
+            outputId.ParameterName = "@id";
+            outputId.SqlDbType = System.Data.SqlDbType.Int;
+            outputId.Direction = System.Data.ParameterDirection.Output;
+
+            await context.Database
+                .ExecuteSqlRawAsync("EXEC Familias_Insertar @nombre = {0}, @id = {1} OUTPUT",
+                genero.Nombre, outputId);
+
+            var id = (int)outputId.Value;
+            return Ok(id);
+        }
+
 
     }
 }
