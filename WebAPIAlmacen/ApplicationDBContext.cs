@@ -44,7 +44,8 @@ namespace WebAPIAlmacen
         public DbSet<UbicacionProducto> UbicacionesProductos { get; set; }
         public DbSet<Distribuidor> Distribuidores { get; set; }
         public DbSet<DistribuidorProducto> DistribuidoresProductos { get; set; }
-        public DbSet<ProductoKeyLess> ProductoKeyLess { get; set; } 
+        public DbSet<ProductoKeyLess> ProductoKeyLess { get; set; }
+        public DbSet<Usuario> Usuarios { get; set; }
 
     }
 }
