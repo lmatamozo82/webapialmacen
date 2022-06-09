@@ -1,6 +1,10 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using Serilog;
+using System.Text;
 using WebAPIAlmacen;
 using WebAPIAlmacen.Filtros;
 using WebAPIAlmacen.Helpers;
@@ -12,8 +16,11 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 
 builder.Services.AddControllers(
-    opciones=>opciones.Filters.Add(typeof(FiltroDeExcepcion))   //Filtro global para manejar las excepciones no manejadas en cualquier controlador.
-    ).AddJsonOptions(opciones=>opciones.JsonSerializerOptions.ReferenceHandler=System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles);  //hecho para evitar ciclos cruzados.
+    opciones=> {
+        opciones.Filters.Add(typeof(FiltroDeExcepcion));
+        opciones.Filters.Add(typeof(LogFilter));   // También se puede poner a nivel de controlador/método poniendo // [TypeFilter(typeof(LogFilter))]
+        //Filtro global para manejar las excepciones no manejadas en cualquier controlador.
+    }).AddJsonOptions(opciones=>opciones.JsonSerializerOptions.ReferenceHandler=System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles);  //hecho para evitar ciclos cruzados.
 
 
 
@@ -83,6 +90,50 @@ builder.Services.AddSingleton<ServicioSingleton>();
 
 builder.Services.AddTransient<IGestorArchivos,GestorArchivosLocal>();
 builder.Services.AddScoped<ProductoExiste>();
+builder.Services.AddDataProtection();
+builder.Services.AddTransient<HashService>(); //Servicio propio para crear un HASH
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)  //Configuramos servico de autenticación
+               .AddJwtBearer(opciones => opciones.TokenValidationParameters = new TokenValidationParameters
+               {
+                   ValidateIssuer = false,
+                   ValidateAudience = false,
+                   ValidateLifetime = true,
+                   ValidateIssuerSigningKey = true,
+                   IssuerSigningKey = new SymmetricSecurityKey(
+                     Encoding.UTF8.GetBytes(builder.Configuration["ClaveJWT"])),
+                   ClockSkew = TimeSpan.Zero
+               });
+
+//Configuración de Swagger para que utilize autenticación.
+builder.Services.AddSwaggerGen(c =>
+{
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header
+    });
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+                {
+                    {
+                        new OpenApiSecurityScheme
+                        {
+                            Reference = new OpenApiReference
+                            {
+                                Type = ReferenceType.SecurityScheme,
+                                Id = "Bearer"
+                            }
+                        },
+                        new string[]{}
+                    }
+                });
+
+});
+
 
 //Nuestra tarea ya es de tipo IhostedService por lo tanto no hay que añadirlo como singleton
 //builder.Services.AddHostedService<TareaProgramadaService>();
